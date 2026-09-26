@@ -40,7 +40,11 @@ data class GridSetupUiState(
             } else {
                 Pair(selectedSheetType.widthMm, selectedSheetType.heightMm)
             }
-            return min(baseW, baseH)
+            return if (imageAspect > 1.0f) {
+                max(baseW, baseH)
+            } else {
+                min(baseW, baseH)
+            }
         }
 
     val sheetHeightMm: Float
@@ -52,7 +56,11 @@ data class GridSetupUiState(
             } else {
                 Pair(selectedSheetType.widthMm, selectedSheetType.heightMm)
             }
-            return max(baseW, baseH)
+            return if (imageAspect > 1.0f) {
+                min(baseW, baseH)
+            } else {
+                max(baseW, baseH)
+            }
         }
 
     val paperAspect: Float

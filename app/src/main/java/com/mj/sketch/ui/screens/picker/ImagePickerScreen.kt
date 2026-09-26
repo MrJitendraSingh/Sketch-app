@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -68,6 +69,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 fun ImagePickerScreen(
     viewModel: ImagePickerViewModel = viewModel(),
     onImageSelected: (Uri) -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val context = LocalContext.current
     @Suppress("DEPRECATION")
@@ -79,6 +81,7 @@ fun ImagePickerScreen(
         viewModel.effect.collect { effect ->
             when (effect) {
                 is ImagePickerEffect.NavigateToPreview -> onImageSelected(effect.uri)
+                is ImagePickerEffect.NavigateToSettings -> onOpenSettings()
                 is ImagePickerEffect.ShowToast -> {
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
                 }
@@ -89,13 +92,13 @@ fun ImagePickerScreen(
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
     ) { uri: Uri? ->
-        uri?.let { viewModel.processIntent(ImagePickerIntent.ImageSelected(it)) }
+        uri?.let { viewModel.processIntent(ImagePickerIntent.ImageSelected(it, context)) }
     }
 
     val getContentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
     ) { uri: Uri? ->
-        uri?.let { viewModel.processIntent(ImagePickerIntent.ImageSelected(it)) }
+        uri?.let { viewModel.processIntent(ImagePickerIntent.ImageSelected(it, context)) }
     }
 
     Scaffold(
@@ -107,9 +110,22 @@ fun ImagePickerScreen(
                         fontWeight = FontWeight.Bold,
                     )
                 },
+                actions = {
+                    IconButton(
+                        onClick = {
+                            viewModel.processIntent(ImagePickerIntent.SettingsClicked)
+                        },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings",
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 ),
             )
         },

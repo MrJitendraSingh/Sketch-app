@@ -1,10 +1,13 @@
 package com.mj.sketch.ui.screens.grid
 
+import android.app.Application
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.net.Uri
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.mj.sketch.data.repository.ProjectRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,7 +16,9 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlin.math.max
 
-class GridSetupViewModel : ViewModel() {
+class GridSetupViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val repository = ProjectRepository.getInstance(application)
 
     private val _uiState = MutableStateFlow(GridSetupUiState())
     val uiState: StateFlow<GridSetupUiState> = _uiState.asStateFlow()
@@ -47,49 +52,78 @@ class GridSetupViewModel : ViewModel() {
             phoneWidthMm = phoneW,
             phoneHeightMm = phoneH,
         )
+        _uiState.value = newState
 
-        val autoCols = newState.calculateAutoCols()
-        val autoRows = newState.calculateAutoRows()
-
-        _uiState.value = newState.copy(
-            cols = autoCols,
-            rows = autoRows,
-            isAutoGrid = true,
-            selectedSectionIndex = 0,
-        )
+        viewModelScope.launch(Dispatchers.IO) {
+            val savedProject = repository.getProjectByUri(uri.toString())
+            if (savedProject != null && savedProject.rows > 0 && savedProject.cols > 0) {
+                val savedSheetType = try {
+                    SheetType.valueOf(savedProject.sheetType)
+                } catch (_: Exception) {
+                    SheetType.A4
+                }
+                _uiState.value = _uiState.value.copy(
+                    selectedSheetType = savedSheetType,
+                    customWidthMm = savedProject.customWidthMm,
+                    customHeightMm = savedProject.customHeightMm,
+                    cols = savedProject.cols,
+                    rows = savedProject.rows,
+                    selectedSectionIndex = savedProject.sectionIndex,
+                    isAutoGrid = false,
+                )
+            } else {
+                selectSheetType(SheetType.A4)
+            }
+            val createdAt = savedProject?.createdAt?:0L
+            if ((System.currentTimeMillis() - createdAt) < 500){
+                selectSheetType(SheetType.A4)
+            }
+        }
     }
 
     private fun selectSheetType(sheetType: SheetType) {
-        val updated = _uiState.value.copy(selectedSheetType = sheetType)
-        recalculateGridIfAuto(updated)
+        val updated = _uiState.value.copy(
+            selectedSheetType = sheetType,
+            isAutoGrid = true,
+        )
+        val autoCols = updated.calculateAutoCols()
+        val autoRows = updated.calculateAutoRows()
+        _uiState.value = updated.copy(
+            cols = autoCols,
+            rows = autoRows,
+            selectedSectionIndex = 0,
+        )
+        saveCurrentState()
     }
 
     private fun updateCustomWidth(widthMm: String) {
-        val updated = _uiState.value.copy(customWidthMm = widthMm)
-        recalculateGridIfAuto(updated)
+        val updated = _uiState.value.copy(
+            customWidthMm = widthMm,
+            isAutoGrid = true,
+        )
+        val autoCols = updated.calculateAutoCols()
+        val autoRows = updated.calculateAutoRows()
+        _uiState.value = updated.copy(
+            cols = autoCols,
+            rows = autoRows,
+            selectedSectionIndex = 0,
+        )
+        saveCurrentState()
     }
 
     private fun updateCustomHeight(heightMm: String) {
-        val updated = _uiState.value.copy(customHeightMm = heightMm)
-        recalculateGridIfAuto(updated)
-    }
-
-    private fun recalculateGridIfAuto(currentState: GridSetupUiState) {
-        val newState = if (currentState.isAutoGrid) {
-            val autoCols = currentState.calculateAutoCols()
-            val autoRows = currentState.calculateAutoRows()
-            currentState.copy(
-                cols = autoCols,
-                rows = autoRows,
-                selectedSectionIndex = 0,
-            )
-        } else {
-            val maxSection = max(0, currentState.totalSections - 1)
-            currentState.copy(
-                selectedSectionIndex = currentState.selectedSectionIndex.coerceIn(0, maxSection),
-            )
-        }
-        _uiState.value = newState
+        val updated = _uiState.value.copy(
+            customHeightMm = heightMm,
+            isAutoGrid = true,
+        )
+        val autoCols = updated.calculateAutoCols()
+        val autoRows = updated.calculateAutoRows()
+        _uiState.value = updated.copy(
+            cols = autoCols,
+            rows = autoRows,
+            selectedSectionIndex = 0,
+        )
+        saveCurrentState()
     }
 
     private fun updateCols(cols: Int) {
@@ -102,6 +136,7 @@ class GridSetupViewModel : ViewModel() {
         _uiState.value = updated.copy(
             selectedSectionIndex = updated.selectedSectionIndex.coerceIn(0, maxSection),
         )
+        saveCurrentState()
     }
 
     private fun updateRows(rows: Int) {
@@ -114,6 +149,7 @@ class GridSetupViewModel : ViewModel() {
         _uiState.value = updated.copy(
             selectedSectionIndex = updated.selectedSectionIndex.coerceIn(0, maxSection),
         )
+        saveCurrentState()
     }
 
     private fun resetAutoGrid() {
@@ -125,6 +161,7 @@ class GridSetupViewModel : ViewModel() {
             rows = autoRows,
             selectedSectionIndex = 0,
         )
+        saveCurrentState()
     }
 
     private fun selectSection(index: Int) {
@@ -132,19 +169,50 @@ class GridSetupViewModel : ViewModel() {
         _uiState.value = _uiState.value.copy(
             selectedSectionIndex = index.coerceIn(0, maxSection),
         )
+        saveCurrentState()
+    }
+
+    private fun saveCurrentState() {
+        val uri = _uiState.value.imageUri ?: return
+        val state = _uiState.value
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.saveOrUpdateProject(
+                imageUri = uri.toString(),
+                rows = state.rows,
+                cols = state.cols,
+                sectionIndex = state.selectedSectionIndex,
+                sheetWidthMm = state.sheetWidthMm,
+                sheetHeightMm = state.sheetHeightMm,
+                sheetType = state.selectedSheetType.name,
+                customWidthMm = state.customWidthMm,
+                customHeightMm = state.customHeightMm,
+            )
+        }
     }
 
     private fun startTracing() {
         val uri = _uiState.value.imageUri ?: return
-        viewModelScope.launch {
+        val state = _uiState.value
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.saveOrUpdateProject(
+                imageUri = uri.toString(),
+                rows = state.rows,
+                cols = state.cols,
+                sectionIndex = state.selectedSectionIndex,
+                sheetWidthMm = state.sheetWidthMm,
+                sheetHeightMm = state.sheetHeightMm,
+                sheetType = state.selectedSheetType.name,
+                customWidthMm = state.customWidthMm,
+                customHeightMm = state.customHeightMm,
+            )
             _effect.send(
                 GridSetupEffect.NavigateToPreview(
                     uri = uri,
-                    rows = _uiState.value.rows,
-                    cols = _uiState.value.cols,
-                    sectionIndex = _uiState.value.selectedSectionIndex,
-                    sheetWidthMm = _uiState.value.sheetWidthMm,
-                    sheetHeightMm = _uiState.value.sheetHeightMm,
+                    rows = state.rows,
+                    cols = state.cols,
+                    sectionIndex = state.selectedSectionIndex,
+                    sheetWidthMm = state.sheetWidthMm,
+                    sheetHeightMm = state.sheetHeightMm,
                 ),
             )
         }
