@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -280,7 +281,7 @@ fun GridSetupScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = "2. Calculate Grid",
+                            text = "2. Scale & Grid Calculation",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
@@ -311,21 +312,33 @@ fun GridSetupScreen(
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             Text(
-                                text = "Drawing area on sheet: ${uiState.drawingWidthMm.toInt()} × ${uiState.drawingHeightMm.toInt()} mm",
+                                text = "Scaled Image on Paper: ${uiState.drawingWidthMm.toInt()} × ${uiState.drawingHeightMm.toInt()} mm",
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
+                            if ((uiState.verticalMarginMm > 1f) || (uiState.horizontalMarginMm > 1f)) {
+                                val marginText = if (uiState.verticalMarginMm > 1f) {
+                                    "Paper Margins (Top/Bottom): ${uiState.verticalMarginMm.toInt()} mm"
+                                } else {
+                                    "Paper Margins (Left/Right): ${uiState.horizontalMarginMm.toInt()} mm"
+                                }
+                                Text(
+                                    text = marginText,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                             Text(
-                                text = "Tile size on paper: ${uiState.tileWidthMm.toInt()} × ${uiState.tileHeightMm.toInt()} mm per section",
+                                text = "Each Grid Tile: ${uiState.tileWidthMm.toInt()} × ${uiState.tileHeightMm.toInt()} mm",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Text(
                                 text = if (uiState.isAutoGrid) {
-                                    "✨ Auto-calculated for 1:1 scale on your phone screen (${uiState.phoneWidthMm.toInt()} × ${uiState.phoneHeightMm.toInt()} mm)."
+                                    "✨ Scaled image fits paper without distortion, divided into 1:1 screen tiles."
                                 } else {
-                                    "⚙️ Manually adjusted grid."
+                                    "⚙️ Custom adjusted grid."
                                 },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
@@ -418,13 +431,13 @@ fun GridSetupScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Text(
-                        text = "3. Grid Preview (Numbered Sections)",
+                        text = "3. Grid Overlay Preview",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
                     )
                     Text(
-                        text = "Tap on any numbered section to choose starting section:",
+                        text = "Paper sheet preview with scaled image & grid overlay. Tap any section to select:",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -445,8 +458,9 @@ private fun GridPreviewView(
     onSectionSelected: (Int) -> Unit,
 ) {
     val sheetAspect = uiState.sheetAspect
+    val imageAspect = uiState.imageAspect
 
-    // Outer Box representing paper sheet boundary
+    // Outer Surface representing paper sheet boundary
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -459,29 +473,38 @@ private fun GridPreviewView(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(if (sheetAspect > 0) sheetAspect else 1f)
+                .aspectRatio(if (sheetAspect > 0f) sheetAspect else 1f)
                 .background(Color.Black.copy(alpha = 0.05f)),
             contentAlignment = Alignment.Center,
         ) {
-            // Inner Drawing Area matching image aspect fit on sheet
-            val drawingAspect = uiState.imageAspect
+            // Fraction of paper occupied by scaled image
+            val widthFraction = if (uiState.sheetWidthMm > 0f) {
+                (uiState.drawingWidthMm / uiState.sheetWidthMm).coerceIn(0.1f, 1.0f)
+            } else 1.0f
+
+            val heightFraction = if (uiState.sheetHeightMm > 0f) {
+                (uiState.drawingHeightMm / uiState.sheetHeightMm).coerceIn(0.1f, 1.0f)
+            } else 1.0f
+
+            // Inner Box representing scaled image on paper
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .aspectRatio(if (drawingAspect > 0) drawingAspect else 1f, matchHeightConstraintsFirst = uiState.imageAspect < uiState.sheetAspect)
+                    .fillMaxWidth(widthFraction)
+                    .fillMaxHeight(heightFraction)
+                    .aspectRatio(if (imageAspect > 0f) imageAspect else 1f)
                     .border(1.dp, MaterialTheme.colorScheme.outline),
             ) {
-                // Background Image
+                // Scaled Image on Paper
                 uiState.imageUri?.let { uri ->
                     AsyncImage(
                         model = uri,
-                        contentDescription = "Full Image with Grid",
-                        contentScale = ContentScale.FillBounds,
+                        contentDescription = "Scaled Image on Paper",
+                        contentScale = ContentScale.Fit,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
 
-                // Grid Overlay
+                // Grid Overlay on top of scaled image
                 Column(modifier = Modifier.fillMaxSize()) {
                     val rows = uiState.rows
                     val cols = uiState.cols

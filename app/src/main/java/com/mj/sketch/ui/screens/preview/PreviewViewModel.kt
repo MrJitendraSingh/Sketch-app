@@ -1,5 +1,7 @@
 package com.mj.sketch.ui.screens.preview
 
+import android.content.Context
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.ui.geometry.Offset
 import androidx.lifecycle.ViewModel
@@ -23,6 +25,7 @@ class PreviewViewModel : ViewModel() {
         when (intent) {
             is PreviewIntent.SetImageUriAndGrid -> setImageUriAndGrid(
                 intent.uri,
+                intent.context,
                 intent.rows,
                 intent.cols,
                 intent.sectionIndex,
@@ -39,11 +42,20 @@ class PreviewViewModel : ViewModel() {
         }
     }
 
-    private fun setImageUriAndGrid(uri: Uri, rows: Int, cols: Int, sectionIndex: Int) {
+    private fun setImageUriAndGrid(
+        uri: Uri,
+        context: Context,
+        rows: Int,
+        cols: Int,
+        sectionIndex: Int,
+    ) {
+        val (w, h) = getImageDimensions(context, uri) ?: Pair(1000, 1000)
         val total = rows * cols
         val validIndex = sectionIndex.coerceIn(0, (total - 1).coerceAtLeast(0))
         _uiState.value = _uiState.value.copy(
             imageUri = uri,
+            imageWidth = w,
+            imageHeight = h,
             rows = rows.coerceAtLeast(1),
             cols = cols.coerceAtLeast(1),
             sectionIndex = validIndex,
@@ -123,6 +135,20 @@ class PreviewViewModel : ViewModel() {
     private fun notifyLockedTouch() {
         viewModelScope.launch {
             _effect.send(PreviewEffect.ShowToast("Screen is locked! Click unlock button to enable touches."))
+        }
+    }
+
+    private fun getImageDimensions(context: Context, uri: Uri): Pair<Int, Int>? {
+        return try {
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                BitmapFactory.decodeStream(stream, null, options)
+            }
+            if ((options.outWidth > 0) && (options.outHeight > 0)) {
+                Pair(options.outWidth, options.outHeight)
+            } else null
+        } catch (_: Exception) {
+            null
         }
     }
 }

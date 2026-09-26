@@ -1,10 +1,13 @@
 package com.mj.sketch.ui.screens.preview
 
+import android.content.Context
 import android.net.Uri
 import androidx.compose.ui.geometry.Offset
 
 data class PreviewUiState(
     val imageUri: Uri? = null,
+    val imageWidth: Int = 0,
+    val imageHeight: Int = 0,
     val rows: Int = 1,
     val cols: Int = 1,
     val sectionIndex: Int = 0,
@@ -13,6 +16,9 @@ data class PreviewUiState(
     val offset: Offset = Offset.Zero,
     val showSectionPicker: Boolean = false,
 ) {
+    val imageAspect: Float
+        get() = if (imageHeight > 0) imageWidth.toFloat() / imageHeight else 1f
+
     val totalSections: Int
         get() = rows * cols
 
@@ -26,6 +32,7 @@ data class PreviewUiState(
 sealed interface PreviewIntent {
     data class SetImageUriAndGrid(
         val uri: Uri,
+        val context: Context,
         val rows: Int = 1,
         val cols: Int = 1,
         val sectionIndex: Int = 0,

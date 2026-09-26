@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -109,6 +110,7 @@ fun PreviewScreen(
         viewModel.processIntent(
             PreviewIntent.SetImageUriAndGrid(
                 uri = imageUri,
+                context = context,
                 rows = rows,
                 cols = cols,
                 sectionIndex = sectionIndex,
@@ -137,11 +139,10 @@ fun PreviewScreen(
             .fillMaxSize()
             .background(Color.Black),
     ) {
-        // 1. Image layer in full screen
-        BoxWithConstraints(
+        // 1. Image layer in full screen preserving section aspect ratio
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .clipToBounds()
                 .pointerInput(uiState.isLocked) {
                     if (!uiState.isLocked) {
                         detectTransformGestures { _, pan, zoom, _ ->
@@ -156,21 +157,33 @@ fun PreviewScreen(
             val cols = uiState.cols
             val rows = uiState.rows
 
-            uiState.imageUri?.let { uri ->
-                AsyncImage(
-                    model = uri,
-                    contentDescription = "Tracing Section ${uiState.sectionIndex + 1}",
-                    contentScale = ContentScale.FillBounds,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer(
-                            transformOrigin = TransformOrigin(0f, 0f),
-                            scaleX = cols * uiState.scale,
-                            scaleY = rows * uiState.scale,
-                            translationX = (-c * constraints.maxWidth.toFloat()) + uiState.offset.x,
-                            translationY = (-r * constraints.maxHeight.toFloat()) + uiState.offset.y,
-                        ),
-                )
+            val cellAspect = if (cols > 0 && rows > 0 && uiState.imageAspect > 0f) {
+                uiState.imageAspect * (rows.toFloat() / cols.toFloat())
+            } else 1f
+
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .aspectRatio(if (cellAspect > 0f) cellAspect else 1f)
+                    .clipToBounds(),
+                contentAlignment = Alignment.Center,
+            ) {
+                uiState.imageUri?.let { uri ->
+                    AsyncImage(
+                        model = uri,
+                        contentDescription = "Tracing Section ${uiState.sectionIndex + 1}",
+                        contentScale = ContentScale.FillBounds,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer(
+                                transformOrigin = TransformOrigin(0f, 0f),
+                                scaleX = cols * uiState.scale,
+                                scaleY = rows * uiState.scale,
+                                translationX = (-c * constraints.maxWidth.toFloat()) + uiState.offset.x,
+                                translationY = (-r * constraints.maxHeight.toFloat()) + uiState.offset.y,
+                            ),
+                    )
+                }
             }
         }
 

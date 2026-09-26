@@ -76,6 +76,12 @@ data class GridSetupUiState(
             }
         }
 
+    val horizontalMarginMm: Float
+        get() = max(0f, (sheetWidthMm - drawingWidthMm) / 2f)
+
+    val verticalMarginMm: Float
+        get() = max(0f, (sheetHeightMm - drawingHeightMm) / 2f)
+
     val tileWidthMm: Float
         get() = if (cols > 0) drawingWidthMm / cols else drawingWidthMm
 
