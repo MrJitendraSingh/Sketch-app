@@ -23,14 +23,16 @@ sealed class Screen(val route: String) {
             return "grid_setup/${Uri.encode(imageUri.toString())}"
         }
     }
-    data object Preview : Screen("preview/{imageUri}?rows={rows}&cols={cols}&section={section}") {
+    data object Preview : Screen("preview/{imageUri}?rows={rows}&cols={cols}&section={section}&sheetW={sheetW}&sheetH={sheetH}") {
         fun createRoute(
             imageUri: Uri,
             rows: Int = 1,
             cols: Int = 1,
             sectionIndex: Int = 0,
+            sheetWidthMm: Float = 210f,
+            sheetHeightMm: Float = 297f,
         ): String {
-            return "preview/${Uri.encode(imageUri.toString())}?rows=$rows&cols=$cols&section=$sectionIndex"
+            return "preview/${Uri.encode(imageUri.toString())}?rows=$rows&cols=$cols&section=$sectionIndex&sheetW=$sheetWidthMm&sheetH=$sheetHeightMm"
         }
     }
 }
@@ -72,8 +74,17 @@ fun AppNavGraph(
 
             GridSetupScreen(
                 imageUri = decodedUri,
-                onStartTracing = { uri, rows, cols, section ->
-                    navController.navigate(Screen.Preview.createRoute(uri, rows, cols, section))
+                onStartTracing = { uri, rows, cols, section, sheetW, sheetH ->
+                    navController.navigate(
+                        Screen.Preview.createRoute(
+                            imageUri = uri,
+                            rows = rows,
+                            cols = cols,
+                            sectionIndex = section,
+                            sheetWidthMm = sheetW,
+                            sheetHeightMm = sheetH,
+                        ),
+                    )
                 },
                 onBackToPicker = {
                     navController.popBackStack()
@@ -88,6 +99,8 @@ fun AppNavGraph(
                 navArgument("rows") { type = NavType.IntType; defaultValue = 1 },
                 navArgument("cols") { type = NavType.IntType; defaultValue = 1 },
                 navArgument("section") { type = NavType.IntType; defaultValue = 0 },
+                navArgument("sheetW") { type = NavType.FloatType; defaultValue = 210f },
+                navArgument("sheetH") { type = NavType.FloatType; defaultValue = 297f },
             ),
         ) { backStackEntry ->
             val encodedUri = backStackEntry.arguments?.getString("imageUri") ?: ""
@@ -95,12 +108,16 @@ fun AppNavGraph(
             val rows = backStackEntry.arguments?.getInt("rows") ?: 1
             val cols = backStackEntry.arguments?.getInt("cols") ?: 1
             val section = backStackEntry.arguments?.getInt("section") ?: 0
+            val sheetW = backStackEntry.arguments?.getFloat("sheetW") ?: 210f
+            val sheetH = backStackEntry.arguments?.getFloat("sheetH") ?: 297f
 
             PreviewScreen(
                 imageUri = decodedUri,
                 rows = rows,
                 cols = cols,
                 sectionIndex = section,
+                sheetWidthMm = sheetW,
+                sheetHeightMm = sheetH,
                 onBackToPicker = {
                     navController.popBackStack()
                 },

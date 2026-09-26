@@ -143,6 +143,8 @@ class GridSetupViewModel : ViewModel() {
                     rows = _uiState.value.rows,
                     cols = _uiState.value.cols,
                     sectionIndex = _uiState.value.selectedSectionIndex,
+                    sheetWidthMm = _uiState.value.sheetWidthMm,
+                    sheetHeightMm = _uiState.value.sheetHeightMm,
                 ),
             )
         }

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -76,6 +77,8 @@ fun PreviewScreen(
     rows: Int = 1,
     cols: Int = 1,
     sectionIndex: Int = 0,
+    sheetWidthMm: Float = 210f,
+    sheetHeightMm: Float = 297f,
     viewModel: PreviewViewModel = viewModel(),
     onBackToPicker: () -> Unit,
 ) {
@@ -106,7 +109,7 @@ fun PreviewScreen(
         }
     }
 
-    LaunchedEffect(imageUri, rows, cols, sectionIndex) {
+    LaunchedEffect(imageUri, rows, cols, sectionIndex, sheetWidthMm, sheetHeightMm) {
         viewModel.processIntent(
             PreviewIntent.SetImageUriAndGrid(
                 uri = imageUri,
@@ -114,6 +117,8 @@ fun PreviewScreen(
                 rows = rows,
                 cols = cols,
                 sectionIndex = sectionIndex,
+                sheetWidthMm = sheetWidthMm,
+                sheetHeightMm = sheetHeightMm,
             ),
         )
     }
@@ -139,7 +144,7 @@ fun PreviewScreen(
             .fillMaxSize()
             .background(Color.Black),
     ) {
-        // 1. Image layer in full screen preserving section aspect ratio
+        // 1. Paper Frame & Image layer in full screen preserving section aspect ratio
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -157,32 +162,52 @@ fun PreviewScreen(
             val cols = uiState.cols
             val rows = uiState.rows
 
-            val cellAspect = if (cols > 0 && rows > 0 && uiState.imageAspect > 0f) {
-                uiState.imageAspect * (rows.toFloat() / cols.toFloat())
+            val sectionAspect = if ((cols > 0) && (rows > 0) && (uiState.paperAspect > 0f)) {
+                uiState.paperAspect * (rows.toFloat() / cols.toFloat())
             } else 1f
 
             BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
-                    .aspectRatio(if (cellAspect > 0f) cellAspect else 1f)
+                    .aspectRatio(if (sectionAspect > 0f) sectionAspect else 1f)
                     .clipToBounds(),
                 contentAlignment = Alignment.Center,
             ) {
-                uiState.imageUri?.let { uri ->
-                    AsyncImage(
-                        model = uri,
-                        contentDescription = "Tracing Section ${uiState.sectionIndex + 1}",
-                        contentScale = ContentScale.FillBounds,
+                val secWidth = constraints.maxWidth.toFloat()
+                val secHeight = constraints.maxHeight.toFloat()
+
+                // White Paper Frame Layer for section (r, c)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer(
+                            transformOrigin = TransformOrigin(0f, 0f),
+                            scaleX = cols * uiState.scale,
+                            scaleY = rows * uiState.scale,
+                            translationX = (-c * secWidth) + uiState.offset.x,
+                            translationY = (-r * secHeight) + uiState.offset.y,
+                        )
+                        .background(Color.White),
+                ) {
+                    val fw = uiState.imageFittedWidthFraction
+                    val fh = uiState.imageFittedHeightFraction
+
+                    // Fitted Image centered on Paper Frame
+                    Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer(
-                                transformOrigin = TransformOrigin(0f, 0f),
-                                scaleX = cols * uiState.scale,
-                                scaleY = rows * uiState.scale,
-                                translationX = (-c * constraints.maxWidth.toFloat()) + uiState.offset.x,
-                                translationY = (-r * constraints.maxHeight.toFloat()) + uiState.offset.y,
-                            ),
-                    )
+                            .fillMaxWidth(fw.coerceIn(0.01f, 1.0f))
+                            .fillMaxHeight(fh.coerceIn(0.01f, 1.0f))
+                            .align(Alignment.Center),
+                    ) {
+                        uiState.imageUri?.let { uri ->
+                            AsyncImage(
+                                model = uri,
+                                contentDescription = "Tracing Piece ${uiState.sectionIndex + 1}",
+                                contentScale = ContentScale.FillBounds,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -240,7 +265,7 @@ fun PreviewScreen(
 
                         Text(
                             text = if (uiState.totalSections > 1) {
-                                "Section ${uiState.sectionIndex + 1} / ${uiState.totalSections}"
+                                "Piece ${uiState.sectionIndex + 1} of ${uiState.totalSections}"
                             } else {
                                 "Preview"
                             },
@@ -314,7 +339,7 @@ fun PreviewScreen(
                             },
                         ) {
                             Text(
-                                text = "Section ${uiState.sectionIndex + 1} / ${uiState.totalSections}",
+                                text = "Piece ${uiState.sectionIndex + 1} of ${uiState.totalSections}",
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
                                 fontSize = 15.sp,
@@ -376,21 +401,25 @@ fun PreviewScreen(
                 onDismissRequest = { viewModel.processIntent(PreviewIntent.ToggleSectionPicker) },
                 title = {
                     Text(
-                        text = "Select Section to Trace",
+                        text = "Select Piece to Trace",
                         fontWeight = FontWeight.Bold,
                     )
                 },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            text = "Tap any section to switch:",
+                            text = "Tap any paper piece to switch:",
                             style = MaterialTheme.typography.bodyMedium,
                         )
+                        Spacer(modifier = Modifier.height(8.dp))
                         SectionGridPicker(
                             rows = uiState.rows,
                             cols = uiState.cols,
                             currentSectionIndex = uiState.sectionIndex,
                             imageUri = uiState.imageUri,
+                            paperAspect = uiState.paperAspect,
+                            imageWidthFraction = uiState.imageFittedWidthFraction,
+                            imageHeightFraction = uiState.imageFittedHeightFraction,
                         ) { index ->
                             viewModel.processIntent(PreviewIntent.SelectSection(index))
                         }
@@ -401,6 +430,7 @@ fun PreviewScreen(
                         Text("Close")
                     }
                 },
+                containerColor = Color.White
             )
         }
     }
@@ -412,76 +442,88 @@ private fun SectionGridPicker(
     cols: Int,
     currentSectionIndex: Int,
     imageUri: Uri?,
+    paperAspect: Float,
+    imageWidthFraction: Float,
+    imageHeightFraction: Float,
     onSectionClick: (Int) -> Unit,
 ) {
     Surface(
         modifier = Modifier
-            .fillMaxWidth()
             .height(240.dp),
-        shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, Color.Gray),
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black),
+            modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
         ) {
-            imageUri?.let { uri ->
-                AsyncImage(
-                    model = uri,
-                    contentDescription = null,
-                    contentScale = ContentScale.FillBounds,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .aspectRatio(if (paperAspect > 0f) paperAspect else 1f)
+                    .background(Color.White),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(imageWidthFraction.coerceIn(0.01f, 1.0f))
+                        .fillMaxHeight(imageHeightFraction.coerceIn(0.01f, 1.0f))
+                        .align(Alignment.Center),
+                ) {
+                    imageUri?.let { uri ->
+                        AsyncImage(
+                            model = uri,
+                            contentDescription = null,
+                            contentScale = ContentScale.FillBounds,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                }
 
-            Column(modifier = Modifier.fillMaxSize()) {
-                for (r in 0 until rows) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                    ) {
-                        for (c in 0 until cols) {
-                            val sectionIndex = (r * cols) + c
-                            val isSelected = sectionIndex == currentSectionIndex
+                Column(modifier = Modifier.fillMaxSize()) {
+                    for (r in 0 until rows) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                        ) {
+                            for (c in 0 until cols) {
+                                val sectionIndex = (r * cols) + c
+                                val isSelected = sectionIndex == currentSectionIndex
 
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxSize()
-                                    .border(1.dp, Color.White.copy(alpha = 0.8f))
-                                    .background(
-                                        if (isSelected) {
-                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
-                                        } else {
-                                            Color.Black.copy(alpha = 0.25f)
-                                        },
-                                    )
-                                    .clickable { onSectionClick(sectionIndex) },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = if (isSelected) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        Color.Black.copy(alpha = 0.7f)
-                                    },
-                                    contentColor = Color.White,
-                                    modifier = Modifier.size(26.dp),
-                                ) {
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier.fillMaxSize(),
-                                    ) {
-                                        Text(
-                                            text = (sectionIndex + 1).toString(),
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 11.sp,
-                                            textAlign = TextAlign.Center,
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxSize()
+                                        .border(1.dp, Color.Black.copy(alpha = 0.35f))
+                                        .background(
+                                            if (isSelected) {
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+                                            } else {
+                                                Color.Transparent
+                                            },
                                         )
+                                        .clickable { onSectionClick(sectionIndex) },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (isSelected) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            Color.Black.copy(alpha = 0.7f)
+                                        },
+                                        contentColor = Color.White,
+                                        modifier = Modifier.size(24.dp),
+                                    ) {
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier.fillMaxSize(),
+                                        ) {
+                                            Text(
+                                                text = (sectionIndex + 1).toString(),
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp,
+                                                textAlign = TextAlign.Center,
+                                            )
+                                        }
                                     }
                                 }
                             }

@@ -8,6 +8,8 @@ data class PreviewUiState(
     val imageUri: Uri? = null,
     val imageWidth: Int = 0,
     val imageHeight: Int = 0,
+    val sheetWidthMm: Float = 210f,
+    val sheetHeightMm: Float = 297f,
     val rows: Int = 1,
     val cols: Int = 1,
     val sectionIndex: Int = 0,
@@ -18,6 +20,27 @@ data class PreviewUiState(
 ) {
     val imageAspect: Float
         get() = if (imageHeight > 0) imageWidth.toFloat() / imageHeight else 1f
+
+    val paperAspect: Float
+        get() = if (sheetHeightMm > 0f) sheetWidthMm / sheetHeightMm else 1f
+
+    val imageFittedWidthFraction: Float
+        get() {
+            return if (imageAspect > paperAspect) {
+                1.0f
+            } else {
+                (imageAspect / paperAspect).coerceIn(0.01f, 1.0f)
+            }
+        }
+
+    val imageFittedHeightFraction: Float
+        get() {
+            return if (imageAspect > paperAspect) {
+                (paperAspect / imageAspect).coerceIn(0.01f, 1.0f)
+            } else {
+                1.0f
+            }
+        }
 
     val totalSections: Int
         get() = rows * cols
@@ -36,6 +59,8 @@ sealed interface PreviewIntent {
         val rows: Int = 1,
         val cols: Int = 1,
         val sectionIndex: Int = 0,
+        val sheetWidthMm: Float = 210f,
+        val sheetHeightMm: Float = 297f,
     ) : PreviewIntent
     data object NextSection : PreviewIntent
     data object PreviousSection : PreviewIntent

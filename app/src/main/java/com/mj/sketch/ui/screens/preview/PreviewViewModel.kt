@@ -6,12 +6,14 @@ import android.net.Uri
 import androidx.compose.ui.geometry.Offset
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class PreviewViewModel : ViewModel() {
 
@@ -29,6 +31,8 @@ class PreviewViewModel : ViewModel() {
                 intent.rows,
                 intent.cols,
                 intent.sectionIndex,
+                intent.sheetWidthMm,
+                intent.sheetHeightMm,
             )
             is PreviewIntent.NextSection -> nextSection()
             is PreviewIntent.PreviousSection -> previousSection()
@@ -48,20 +52,26 @@ class PreviewViewModel : ViewModel() {
         rows: Int,
         cols: Int,
         sectionIndex: Int,
+        sheetWidthMm: Float,
+        sheetHeightMm: Float,
     ) {
-        val (w, h) = getImageDimensions(context, uri) ?: Pair(1000, 1000)
-        val total = rows * cols
-        val validIndex = sectionIndex.coerceIn(0, (total - 1).coerceAtLeast(0))
-        _uiState.value = _uiState.value.copy(
-            imageUri = uri,
-            imageWidth = w,
-            imageHeight = h,
-            rows = rows.coerceAtLeast(1),
-            cols = cols.coerceAtLeast(1),
-            sectionIndex = validIndex,
-            scale = 1f,
-            offset = Offset.Zero,
-        )
+        viewModelScope.launch {
+            val (w, h) = getImageDimensions(context, uri) ?: Pair(1000, 1000)
+            val total = rows * cols
+            val validIndex = sectionIndex.coerceIn(0, (total - 1).coerceAtLeast(0))
+            _uiState.value = _uiState.value.copy(
+                imageUri = uri,
+                imageWidth = w,
+                imageHeight = h,
+                sheetWidthMm = sheetWidthMm,
+                sheetHeightMm = sheetHeightMm,
+                rows = rows.coerceAtLeast(1),
+                cols = cols.coerceAtLeast(1),
+                sectionIndex = validIndex,
+                scale = 1f,
+                offset = Offset.Zero,
+            )
+        }
     }
 
     private fun nextSection() {
@@ -138,15 +148,30 @@ class PreviewViewModel : ViewModel() {
         }
     }
 
-    private fun getImageDimensions(context: Context, uri: Uri): Pair<Int, Int>? {
-        return try {
-            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            context.contentResolver.openInputStream(uri)?.use { stream ->
-                BitmapFactory.decodeStream(stream, null, options)
+    private suspend fun getImageDimensions(context: Context, uri: Uri): Pair<Int, Int>? = withContext(Dispatchers.IO) {
+        try {
+            val scheme = uri.scheme?.lowercase()
+            if ((scheme == "http") || (scheme == "https")) {
+                val url = java.net.URL(uri.toString())
+                val connection = url.openConnection() as java.net.HttpURLConnection
+                connection.connectTimeout = 5000
+                connection.readTimeout = 5000
+                connection.inputStream.use { stream ->
+                    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeStream(stream, null, options)
+                    if ((options.outWidth > 0) && (options.outHeight > 0)) {
+                        Pair(options.outWidth, options.outHeight)
+                    } else null
+                }
+            } else {
+                val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                context.contentResolver.openInputStream(uri)?.use { stream ->
+                    BitmapFactory.decodeStream(stream, null, options)
+                }
+                if ((options.outWidth > 0) && (options.outHeight > 0)) {
+                    Pair(options.outWidth, options.outHeight)
+                } else null
             }
-            if ((options.outWidth > 0) && (options.outHeight > 0)) {
-                Pair(options.outWidth, options.outHeight)
-            } else null
         } catch (_: Exception) {
             null
         }

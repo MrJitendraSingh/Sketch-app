@@ -55,21 +55,21 @@ data class GridSetupUiState(
             return max(baseW, baseH)
         }
 
-    val sheetAspect: Float
-        get() = if (sheetHeightMm > 0) sheetWidthMm / sheetHeightMm else 1f
+    val paperAspect: Float
+        get() = if (sheetHeightMm > 0f) sheetWidthMm / sheetHeightMm else 1f
 
-    val drawingWidthMm: Float
+    val imageFittedWidthMm: Float
         get() {
-            return if (imageAspect > sheetAspect) {
+            return if (imageAspect > paperAspect) {
                 sheetWidthMm
             } else {
                 sheetHeightMm * imageAspect
             }
         }
 
-    val drawingHeightMm: Float
+    val imageFittedHeightMm: Float
         get() {
-            return if (imageAspect > sheetAspect) {
+            return if (imageAspect > paperAspect) {
                 sheetWidthMm / imageAspect
             } else {
                 sheetHeightMm
@@ -77,27 +77,27 @@ data class GridSetupUiState(
         }
 
     val horizontalMarginMm: Float
-        get() = max(0f, (sheetWidthMm - drawingWidthMm) / 2f)
+        get() = max(0f, (sheetWidthMm - imageFittedWidthMm) / 2f)
 
     val verticalMarginMm: Float
-        get() = max(0f, (sheetHeightMm - drawingHeightMm) / 2f)
+        get() = max(0f, (sheetHeightMm - imageFittedHeightMm) / 2f)
 
     val tileWidthMm: Float
-        get() = if (cols > 0) drawingWidthMm / cols else drawingWidthMm
+        get() = if (cols > 0) sheetWidthMm / cols else sheetWidthMm
 
     val tileHeightMm: Float
-        get() = if (rows > 0) drawingHeightMm / rows else drawingHeightMm
+        get() = if (rows > 0) sheetHeightMm / rows else sheetHeightMm
 
     val totalSections: Int
         get() = cols * rows
 
     fun calculateAutoCols(): Int {
-        val calculated = ceil(drawingWidthMm / phoneWidthMm).toInt()
+        val calculated = ceil(sheetWidthMm / phoneWidthMm).toInt()
         return max(1, calculated)
     }
 
     fun calculateAutoRows(): Int {
-        val calculated = ceil(drawingHeightMm / phoneHeightMm).toInt()
+        val calculated = ceil(sheetHeightMm / phoneHeightMm).toInt()
         return max(1, calculated)
     }
 }
@@ -121,6 +121,8 @@ sealed interface GridSetupEffect {
         val rows: Int,
         val cols: Int,
         val sectionIndex: Int,
+        val sheetWidthMm: Float,
+        val sheetHeightMm: Float,
     ) : GridSetupEffect
     data object NavigateBack : GridSetupEffect
     data class ShowToast(val message: String) : GridSetupEffect

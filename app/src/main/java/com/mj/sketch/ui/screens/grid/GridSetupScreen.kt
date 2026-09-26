@@ -72,7 +72,7 @@ import coil.compose.AsyncImage
 fun GridSetupScreen(
     imageUri: Uri,
     viewModel: GridSetupViewModel = viewModel(),
-    onStartTracing: (Uri, Int, Int, Int) -> Unit,
+    onStartTracing: (Uri, Int, Int, Int, Float, Float) -> Unit,
     onBackToPicker: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -86,7 +86,14 @@ fun GridSetupScreen(
         viewModel.effect.collect { effect ->
             when (effect) {
                 is GridSetupEffect.NavigateToPreview -> {
-                    onStartTracing(effect.uri, effect.rows, effect.cols, effect.sectionIndex)
+                    onStartTracing(
+                        effect.uri,
+                        effect.rows,
+                        effect.cols,
+                        effect.sectionIndex,
+                        effect.sheetWidthMm,
+                        effect.sheetHeightMm,
+                    )
                 }
                 is GridSetupEffect.NavigateBack -> onBackToPicker()
                 is GridSetupEffect.ShowToast -> {
@@ -105,7 +112,7 @@ fun GridSetupScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "Sheet Size & Grid Setup",
+                        text = "Paper & Grid Setup",
                         fontWeight = FontWeight.Bold,
                     )
                 },
@@ -140,7 +147,7 @@ fun GridSetupScreen(
                 ) {
                     Column {
                         Text(
-                            text = "Section ${uiState.selectedSectionIndex + 1} / ${uiState.totalSections}",
+                            text = "Piece ${uiState.selectedSectionIndex + 1} of ${uiState.totalSections}",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
@@ -195,7 +202,7 @@ fun GridSetupScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Text(
-                        text = "1. Select Sheet Size",
+                        text = "1. Paper Sheet Frame",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
@@ -262,7 +269,7 @@ fun GridSetupScreen(
                 }
             }
 
-            // 2. Calculated Grid & Steppers Card
+            // 2. Paper & Grid Summary
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
@@ -281,7 +288,7 @@ fun GridSetupScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = "2. Scale & Grid Calculation",
+                            text = "2. Grid Division Settings",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
@@ -312,16 +319,21 @@ fun GridSetupScreen(
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             Text(
-                                text = "Scaled Image on Paper: ${uiState.drawingWidthMm.toInt()} × ${uiState.drawingHeightMm.toInt()} mm",
+                                text = "Paper Size: ${uiState.sheetWidthMm.toInt()} × ${uiState.sheetHeightMm.toInt()} mm",
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
+                            Text(
+                                text = "Fitted Image: ${uiState.imageFittedWidthMm.toInt()} × ${uiState.imageFittedHeightMm.toInt()} mm",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                             if ((uiState.verticalMarginMm > 1f) || (uiState.horizontalMarginMm > 1f)) {
                                 val marginText = if (uiState.verticalMarginMm > 1f) {
-                                    "Paper Margins (Top/Bottom): ${uiState.verticalMarginMm.toInt()} mm"
+                                    "White Margins (Top/Bottom): ${uiState.verticalMarginMm.toInt()} mm"
                                 } else {
-                                    "Paper Margins (Left/Right): ${uiState.horizontalMarginMm.toInt()} mm"
+                                    "White Margins (Left/Right): ${uiState.horizontalMarginMm.toInt()} mm"
                                 }
                                 Text(
                                     text = marginText,
@@ -330,15 +342,15 @@ fun GridSetupScreen(
                                 )
                             }
                             Text(
-                                text = "Each Grid Tile: ${uiState.tileWidthMm.toInt()} × ${uiState.tileHeightMm.toInt()} mm",
+                                text = "Each Paper Piece: ${uiState.tileWidthMm.toInt()} × ${uiState.tileHeightMm.toInt()} mm",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Text(
                                 text = if (uiState.isAutoGrid) {
-                                    "✨ Scaled image fits paper without distortion, divided into 1:1 screen tiles."
+                                    "✨ Image fitted inside paper without distortion. Grid divides entire paper sheet into phone-sized pieces."
                                 } else {
-                                    "⚙️ Custom adjusted grid."
+                                    "⚙️ Custom adjusted paper grid."
                                 },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
@@ -431,13 +443,13 @@ fun GridSetupScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Text(
-                        text = "3. Grid Overlay Preview",
+                        text = "3. Paper Frame Grid Preview",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
                     )
                     Text(
-                        text = "Paper sheet preview with scaled image & grid overlay. Tap any section to select:",
+                        text = "Complete white paper frame with fitted image & divided pieces. Tap any piece to select:",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -457,108 +469,103 @@ private fun GridPreviewView(
     uiState: GridSetupUiState,
     onSectionSelected: (Int) -> Unit,
 ) {
-    val sheetAspect = uiState.sheetAspect
-    val imageAspect = uiState.imageAspect
+    val paperAspect = uiState.paperAspect
 
-    // Outer Surface representing paper sheet boundary
+    // Outer Surface representing the White Paper Frame
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-        color = MaterialTheme.colorScheme.surface,
+        color = Color.White, // White paper frame
         shadowElevation = 4.dp,
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(if (sheetAspect > 0f) sheetAspect else 1f)
-                .background(Color.Black.copy(alpha = 0.05f)),
+                .aspectRatio(if (paperAspect > 0f) paperAspect else 1f),
             contentAlignment = Alignment.Center,
         ) {
-            // Fraction of paper occupied by scaled image
+            // Fraction of paper occupied by fitted image
             val widthFraction = if (uiState.sheetWidthMm > 0f) {
-                (uiState.drawingWidthMm / uiState.sheetWidthMm).coerceIn(0.1f, 1.0f)
+                (uiState.imageFittedWidthMm / uiState.sheetWidthMm).coerceIn(0.01f, 1.0f)
             } else 1.0f
 
             val heightFraction = if (uiState.sheetHeightMm > 0f) {
-                (uiState.drawingHeightMm / uiState.sheetHeightMm).coerceIn(0.1f, 1.0f)
+                (uiState.imageFittedHeightMm / uiState.sheetHeightMm).coerceIn(0.01f, 1.0f)
             } else 1.0f
 
-            // Inner Box representing scaled image on paper
+            // Inner Box representing fitted image centered inside white paper frame
             Box(
                 modifier = Modifier
                     .fillMaxWidth(widthFraction)
-                    .fillMaxHeight(heightFraction)
-                    .aspectRatio(if (imageAspect > 0f) imageAspect else 1f)
-                    .border(1.dp, MaterialTheme.colorScheme.outline),
+                    .fillMaxHeight(heightFraction),
             ) {
-                // Scaled Image on Paper
                 uiState.imageUri?.let { uri ->
                     AsyncImage(
                         model = uri,
-                        contentDescription = "Scaled Image on Paper",
-                        contentScale = ContentScale.Fit,
+                        contentDescription = "Fitted Image on Paper Frame",
+                        contentScale = ContentScale.FillBounds,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
+            }
 
-                // Grid Overlay on top of scaled image
-                Column(modifier = Modifier.fillMaxSize()) {
-                    val rows = uiState.rows
-                    val cols = uiState.cols
+            // Grid Overlay spanning the ENTIRE white paper frame
+            Column(modifier = Modifier.fillMaxSize()) {
+                val rows = uiState.rows
+                val cols = uiState.cols
 
-                    for (r in 0 until rows) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                        ) {
-                            for (c in 0 until cols) {
-                                val sectionIndex = (r * cols) + c
-                                val isSelected = sectionIndex == uiState.selectedSectionIndex
+                for (r in 0 until rows) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                    ) {
+                        for (c in 0 until cols) {
+                            val sectionIndex = (r * cols) + c
+                            val isSelected = sectionIndex == uiState.selectedSectionIndex
 
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxSize()
-                                        .border(1.dp, Color.White.copy(alpha = 0.8f))
-                                        .background(
-                                            if (isSelected) {
-                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
-                                            } else {
-                                                Color.Black.copy(alpha = 0.25f)
-                                            },
-                                        )
-                                        .clickable { onSectionSelected(sectionIndex) },
-                                    contentAlignment = Alignment.Center,
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxSize()
+                                    .border(1.dp, Color.Black.copy(alpha = 0.35f))
+                                    .background(
+                                        if (isSelected) {
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                                        } else {
+                                            Color.Transparent
+                                        },
+                                    )
+                                    .clickable { onSectionSelected(sectionIndex) },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (isSelected) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        Color.Black.copy(alpha = 0.65f)
+                                    },
+                                    contentColor = if (isSelected) {
+                                        MaterialTheme.colorScheme.onPrimary
+                                    } else {
+                                        Color.White
+                                    },
+                                    modifier = Modifier.size(28.dp),
                                 ) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = if (isSelected) {
-                                            MaterialTheme.colorScheme.primary
-                                        } else {
-                                            Color.Black.copy(alpha = 0.7f)
-                                        },
-                                        contentColor = if (isSelected) {
-                                            MaterialTheme.colorScheme.onPrimary
-                                        } else {
-                                            Color.White
-                                        },
-                                        modifier = Modifier.size(28.dp),
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier.fillMaxSize(),
                                     ) {
-                                        Box(
-                                            contentAlignment = Alignment.Center,
-                                            modifier = Modifier.fillMaxSize(),
-                                        ) {
-                                            Text(
-                                                text = (sectionIndex + 1).toString(),
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 12.sp,
-                                                textAlign = TextAlign.Center,
-                                            )
-                                        }
+                                        Text(
+                                            text = (sectionIndex + 1).toString(),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp,
+                                            textAlign = TextAlign.Center,
+                                        )
                                     }
                                 }
                             }
