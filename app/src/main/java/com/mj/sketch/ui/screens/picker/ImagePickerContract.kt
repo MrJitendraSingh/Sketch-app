@@ -10,13 +10,15 @@ data class ImagePickerUiState(
 )
 
 sealed interface ImagePickerIntent {
-    data class ImageSelected(val uri: Uri) : ImagePickerIntent
+    data class ImageSelected(val uri: Uri, val context: Context) : ImagePickerIntent
     data class UrlInputChanged(val url: String) : ImagePickerIntent
     data class SubmitUrl(val context: Context) : ImagePickerIntent
     data object ClearErrorMessage : ImagePickerIntent
+    data object SettingsClicked : ImagePickerIntent
 }
 
 sealed interface ImagePickerEffect {
     data class NavigateToPreview(val uri: Uri) : ImagePickerEffect
+    data object NavigateToSettings : ImagePickerEffect
     data class ShowToast(val message: String) : ImagePickerEffect
 }

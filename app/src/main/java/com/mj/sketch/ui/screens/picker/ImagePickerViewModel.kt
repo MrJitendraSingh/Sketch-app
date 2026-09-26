@@ -1,10 +1,12 @@
 package com.mj.sketch.ui.screens.picker
 
+import android.app.Application
 import android.content.Context
 import android.net.Uri
 import android.webkit.URLUtil
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.mj.sketch.data.repository.ProjectRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,7 +18,9 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.security.MessageDigest
 
-class ImagePickerViewModel : ViewModel() {
+class ImagePickerViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val repository = ProjectRepository.getInstance(application)
 
     private val _uiState = MutableStateFlow(ImagePickerUiState())
     val uiState: StateFlow<ImagePickerUiState> = _uiState.asStateFlow()
@@ -27,9 +31,7 @@ class ImagePickerViewModel : ViewModel() {
     fun processIntent(intent: ImagePickerIntent) {
         when (intent) {
             is ImagePickerIntent.ImageSelected -> {
-                viewModelScope.launch {
-                    _effect.send(ImagePickerEffect.NavigateToPreview(intent.uri))
-                }
+                saveAndNavigate(intent.uri)
             }
             is ImagePickerIntent.UrlInputChanged -> {
                 _uiState.update { it.copy(urlInput = intent.url, errorMessage = null) }
@@ -40,6 +42,18 @@ class ImagePickerViewModel : ViewModel() {
             is ImagePickerIntent.ClearErrorMessage -> {
                 _uiState.update { it.copy(errorMessage = null) }
             }
+            is ImagePickerIntent.SettingsClicked -> {
+                viewModelScope.launch {
+                    _effect.send(ImagePickerEffect.NavigateToSettings)
+                }
+            }
+        }
+    }
+
+    private fun saveAndNavigate(uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.saveOrUpdateProject(imageUri = uri.toString())
+            _effect.send(ImagePickerEffect.NavigateToPreview(uri))
         }
     }
 
@@ -72,12 +86,10 @@ class ImagePickerViewModel : ViewModel() {
         }
         val targetFile = File(imagesDir, fileName)
 
-        // If file already exists locally, load existing image without re-downloading
         if (targetFile.exists() && (targetFile.length() > 0)) {
+            val localUri = Uri.fromFile(targetFile)
             _uiState.update { it.copy(isLoading = false, errorMessage = null) }
-            viewModelScope.launch {
-                _effect.send(ImagePickerEffect.NavigateToPreview(Uri.fromFile(targetFile)))
-            }
+            saveAndNavigate(localUri)
             return
         }
 
@@ -109,8 +121,10 @@ class ImagePickerViewModel : ViewModel() {
                         if (targetFile.exists()) targetFile.delete()
                         tempFile.renameTo(targetFile)
 
+                        val downloadedUri = Uri.fromFile(targetFile)
                         _uiState.update { it.copy(isLoading = false) }
-                        _effect.send(ImagePickerEffect.NavigateToPreview(Uri.fromFile(targetFile)))
+                        repository.saveOrUpdateProject(imageUri = downloadedUri.toString())
+                        _effect.send(ImagePickerEffect.NavigateToPreview(downloadedUri))
                     } else {
                         tempFile.delete()
                         _uiState.update {

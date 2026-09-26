@@ -11,13 +11,17 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.mj.sketch.ui.screens.grid.GridSetupScreen
+import com.mj.sketch.ui.screens.history.HistoryScreen
 import com.mj.sketch.ui.screens.picker.ImagePickerScreen
 import com.mj.sketch.ui.screens.preview.PreviewScreen
+import com.mj.sketch.ui.screens.settings.SettingsScreen
 import com.mj.sketch.ui.screens.splash.SplashScreen
 
 sealed class Screen(val route: String) {
     data object Splash : Screen("splash")
     data object ImagePicker : Screen("image_picker")
+    data object Settings : Screen("settings")
+    data object History : Screen("history")
     data object GridSetup : Screen("grid_setup/{imageUri}") {
         fun createRoute(imageUri: Uri): String {
             return "grid_setup/${Uri.encode(imageUri.toString())}"
@@ -59,6 +63,31 @@ fun AppNavGraph(
             ImagePickerScreen(
                 onImageSelected = { uri ->
                     navController.navigate(Screen.GridSetup.createRoute(uri))
+                },
+                onOpenSettings = {
+                    navController.navigate(Screen.Settings.route)
+                },
+            )
+        }
+
+        composable(route = Screen.Settings.route) {
+            SettingsScreen(
+                onNavigateToHistory = {
+                    navController.navigate(Screen.History.route)
+                },
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+            )
+        }
+
+        composable(route = Screen.History.route) {
+            HistoryScreen(
+                onOpenProject = { uri ->
+                    navController.navigate(Screen.GridSetup.createRoute(uri))
+                },
+                onNavigateBack = {
+                    navController.popBackStack()
                 },
             )
         }

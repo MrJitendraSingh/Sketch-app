@@ -377,7 +377,7 @@ fun PreviewScreen(
                 .align(Alignment.BottomEnd)
                 .padding(
                     end = 24.dp,
-                    bottom = if (!uiState.isLocked && (uiState.totalSections > 1)) 80.dp else 24.dp,
+                    bottom = if (!uiState.isLocked && (uiState.totalSections > 1)) 100.dp else 24.dp,
                 )
                 .size(56.dp)
                 .border(1.5.dp, Color.White.copy(alpha = 0.7f), CircleShape),

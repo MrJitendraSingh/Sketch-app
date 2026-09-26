@@ -1,11 +1,13 @@
 package com.mj.sketch.ui.screens.preview
 
+import android.app.Application
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.ui.geometry.Offset
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.mj.sketch.data.repository.ProjectRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,7 +17,9 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class PreviewViewModel : ViewModel() {
+class PreviewViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val repository = ProjectRepository.getInstance(application)
 
     private val _uiState = MutableStateFlow(PreviewUiState())
     val uiState: StateFlow<PreviewUiState> = _uiState.asStateFlow()
@@ -71,6 +75,17 @@ class PreviewViewModel : ViewModel() {
                 scale = 1f,
                 offset = Offset.Zero,
             )
+
+            withContext(Dispatchers.IO) {
+                repository.saveOrUpdateProject(
+                    imageUri = uri.toString(),
+                    rows = rows.coerceAtLeast(1),
+                    cols = cols.coerceAtLeast(1),
+                    sectionIndex = validIndex,
+                    sheetWidthMm = sheetWidthMm,
+                    sheetHeightMm = sheetHeightMm,
+                )
+            }
         }
     }
 
