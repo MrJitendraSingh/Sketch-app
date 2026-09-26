@@ -44,6 +44,9 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
                         sectionIndex = project.sectionIndex,
                         sheetWidthMm = project.sheetWidthMm,
                         sheetHeightMm = project.sheetHeightMm,
+                        sheetType = project.sheetType,
+                        customWidthMm = project.customWidthMm,
+                        customHeightMm = project.customHeightMm,
                     )
                     _effect.send(HistoryEffect.OpenImageGrid(project.imageUri.toUri()))
                 }

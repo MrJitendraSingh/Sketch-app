@@ -52,25 +52,31 @@ class GridSetupViewModel(application: Application) : AndroidViewModel(applicatio
             phoneWidthMm = phoneW,
             phoneHeightMm = phoneH,
         )
+        _uiState.value = newState
 
         viewModelScope.launch(Dispatchers.IO) {
             val savedProject = repository.getProjectByUri(uri.toString())
             if (savedProject != null && savedProject.rows > 0 && savedProject.cols > 0) {
-                _uiState.value = newState.copy(
+                val savedSheetType = try {
+                    SheetType.valueOf(savedProject.sheetType)
+                } catch (_: Exception) {
+                    SheetType.A4
+                }
+                _uiState.value = _uiState.value.copy(
+                    selectedSheetType = savedSheetType,
+                    customWidthMm = savedProject.customWidthMm,
+                    customHeightMm = savedProject.customHeightMm,
                     cols = savedProject.cols,
                     rows = savedProject.rows,
                     selectedSectionIndex = savedProject.sectionIndex,
                     isAutoGrid = false,
                 )
             } else {
-                val autoCols = newState.calculateAutoCols()
-                val autoRows = newState.calculateAutoRows()
-                _uiState.value = newState.copy(
-                    cols = autoCols,
-                    rows = autoRows,
-                    isAutoGrid = true,
-                    selectedSectionIndex = 0,
-                )
+                selectSheetType(SheetType.A4)
+            }
+            val createdAt = savedProject?.createdAt?:0L
+            if ((System.currentTimeMillis() - createdAt) < 500){
+                selectSheetType(SheetType.A4)
             }
         }
     }
@@ -87,6 +93,7 @@ class GridSetupViewModel(application: Application) : AndroidViewModel(applicatio
             rows = autoRows,
             selectedSectionIndex = 0,
         )
+        saveCurrentState()
     }
 
     private fun updateCustomWidth(widthMm: String) {
@@ -101,6 +108,7 @@ class GridSetupViewModel(application: Application) : AndroidViewModel(applicatio
             rows = autoRows,
             selectedSectionIndex = 0,
         )
+        saveCurrentState()
     }
 
     private fun updateCustomHeight(heightMm: String) {
@@ -115,6 +123,7 @@ class GridSetupViewModel(application: Application) : AndroidViewModel(applicatio
             rows = autoRows,
             selectedSectionIndex = 0,
         )
+        saveCurrentState()
     }
 
     private fun updateCols(cols: Int) {
@@ -127,6 +136,7 @@ class GridSetupViewModel(application: Application) : AndroidViewModel(applicatio
         _uiState.value = updated.copy(
             selectedSectionIndex = updated.selectedSectionIndex.coerceIn(0, maxSection),
         )
+        saveCurrentState()
     }
 
     private fun updateRows(rows: Int) {
@@ -139,6 +149,7 @@ class GridSetupViewModel(application: Application) : AndroidViewModel(applicatio
         _uiState.value = updated.copy(
             selectedSectionIndex = updated.selectedSectionIndex.coerceIn(0, maxSection),
         )
+        saveCurrentState()
     }
 
     private fun resetAutoGrid() {
@@ -150,6 +161,7 @@ class GridSetupViewModel(application: Application) : AndroidViewModel(applicatio
             rows = autoRows,
             selectedSectionIndex = 0,
         )
+        saveCurrentState()
     }
 
     private fun selectSection(index: Int) {
@@ -157,6 +169,25 @@ class GridSetupViewModel(application: Application) : AndroidViewModel(applicatio
         _uiState.value = _uiState.value.copy(
             selectedSectionIndex = index.coerceIn(0, maxSection),
         )
+        saveCurrentState()
+    }
+
+    private fun saveCurrentState() {
+        val uri = _uiState.value.imageUri ?: return
+        val state = _uiState.value
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.saveOrUpdateProject(
+                imageUri = uri.toString(),
+                rows = state.rows,
+                cols = state.cols,
+                sectionIndex = state.selectedSectionIndex,
+                sheetWidthMm = state.sheetWidthMm,
+                sheetHeightMm = state.sheetHeightMm,
+                sheetType = state.selectedSheetType.name,
+                customWidthMm = state.customWidthMm,
+                customHeightMm = state.customHeightMm,
+            )
+        }
     }
 
     private fun startTracing() {
@@ -170,6 +201,9 @@ class GridSetupViewModel(application: Application) : AndroidViewModel(applicatio
                 sectionIndex = state.selectedSectionIndex,
                 sheetWidthMm = state.sheetWidthMm,
                 sheetHeightMm = state.sheetHeightMm,
+                sheetType = state.selectedSheetType.name,
+                customWidthMm = state.customWidthMm,
+                customHeightMm = state.customHeightMm,
             )
             _effect.send(
                 GridSetupEffect.NavigateToPreview(

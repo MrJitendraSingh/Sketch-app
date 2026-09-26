@@ -13,6 +13,9 @@ data class ProjectEntity(
     val sectionIndex: Int = 0,
     val sheetWidthMm: Float = 210f,
     val sheetHeightMm: Float = 297f,
+    val sheetType: String = "A4",
+    val customWidthMm: String = "200",
+    val customHeightMm: String = "200",
     val createdAt: Long = System.currentTimeMillis(),
     val lastUsedAt: Long = System.currentTimeMillis(),
 )

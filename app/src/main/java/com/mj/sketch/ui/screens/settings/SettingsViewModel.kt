@@ -35,7 +35,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             }
             is SettingsIntent.OpenSupportEmail -> {
                 viewModelScope.launch {
-                    _effect.send(SettingsEffect.OpenEmailClient("support@sketchapp.com", "Sketch App Support"))
+                    _effect.send(SettingsEffect.OpenEmailClient("vigyaanam.in@gmail.com", "Sketch App Support"))
                 }
             }
             is SettingsIntent.BackClicked -> {
