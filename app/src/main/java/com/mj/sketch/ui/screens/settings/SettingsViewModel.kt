@@ -30,7 +30,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             }
             is SettingsIntent.OpenPrivacyPolicy -> {
                 viewModelScope.launch {
-                    _effect.send(SettingsEffect.OpenWebUrl("https://www.google.com/policies/privacy"))
+                    _effect.send(SettingsEffect.OpenWebUrl("https://www.freeprivacypolicy.com/live/4f518e79-8f20-4e00-8e41-36f8acdf05f6"))
                 }
             }
             is SettingsIntent.OpenSupportEmail -> {
